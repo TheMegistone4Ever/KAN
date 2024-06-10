@@ -40,7 +40,7 @@ def define_hyperparameters() -> Dict[str, Union[int, float, str]]:
     """
 
     return {
-        "epochs": 10,
+        "epochs": 100,
         "batch_size": 32,
         "learning_rate": 1e-3,
         "weight_decay": 1e-4,
