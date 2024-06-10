@@ -86,25 +86,25 @@ def train_model(model: Module, model_device: Any, epochs: int, train_loader: Dat
     for epoch in range(epochs):
         model.train()
         with tqdm(train_loader, desc=f"Epoch {epoch + 1:05d}/{epochs}") as pbar:
-            train_loss_sum, train_num = 0, 0
+            train_loss_sum, train_num, train_loss = 0, 0, 0
             for images, labels in pbar:
                 loss = do_backpropagation(model, model_device, optimizer, loss_func, images, labels, input_size)
                 train_loss_sum += loss * images.size(0)
                 train_num += images.size(0)
-
-                train_loss_all.append(train_loss := train_loss_sum / train_num if train_num else 0)
+                train_loss = train_loss_sum / train_num if train_num else 0
                 pbar.set_postfix_str(f"lr={optimizer.param_groups[0]['lr']:.2e}, {train_loss=:.4f}")
+            train_loss_all.append(train_loss)
 
         model.eval()
         with tqdm(val_loader, desc="Validation Loop") as pbar:
-            val_loss_sum, val_num = 0, 0
+            val_loss_sum, val_num, val_loss = 0, 0, 0
             for images, labels in pbar:
                 loss = calculate_val_loss(model, loss_func, model_device, images, labels, input_size)
                 val_loss_sum += loss * images.size(0)
                 val_num += images.size(0)
-
-                val_loss_all.append(val_loss := val_loss_sum / val_num if val_num else 0)
+                val_loss = val_loss_sum / val_num if val_num else 0
                 pbar.set_postfix_str(f"{val_loss=:.4f}")
+            val_loss_all.append(val_loss)
 
         update_lr(scheduler)
 
