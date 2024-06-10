@@ -3,7 +3,7 @@ from torch.nn import Module, Linear
 
 
 class MLP(Module):
-    def __init__(self, input_size, hidden_size, output_size):
+    def __init__(self, input_size: int, hidden_size: int, output_size: int):
         super(MLP, self).__init__()
         self.__input_size = input_size
         self.fc1 = Linear(input_size, hidden_size)

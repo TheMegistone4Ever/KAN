@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from typing import Tuple, List, Dict, Union, Any, Callable
+
 from matplotlib.pyplot import figure, plot, xlabel, ylabel, legend, title, show
-from torch import device, cuda, save, no_grad
+from torch import device, cuda, save, no_grad, Tensor
 from torch.nn import CrossEntropyLoss, Module
-from torch.optim import AdamW
+from torch.optim import AdamW, Optimizer
 from torch.optim.lr_scheduler import ExponentialLR, LRScheduler
 from torch.utils.data import DataLoader, random_split
 from torchvision.datasets import MNIST
@@ -11,13 +13,13 @@ from torchvision.transforms import ToTensor
 from tqdm import tqdm
 
 
-def plot_training_curve(train_loss_all: list[float], val_loss_all: list[float]) -> type(None):
+def plot_training_curve(train_loss_all: List[float], val_loss_all: List[float]) -> None:
     """
     Plot the training curve
 
     :param train_loss_all: Training losses
     :param val_loss_all: Validation losses
-    :return:
+    :return: None
     """
 
     figure(figsize=(10, 5))
@@ -30,7 +32,7 @@ def plot_training_curve(train_loss_all: list[float], val_loss_all: list[float]) 
     show()
 
 
-def define_hyperparameters() -> dict[str, int | float | str]:
+def define_hyperparameters() -> Dict[str, Union[int, float, str]]:
     """
     Define the parameters for training
 
@@ -38,7 +40,7 @@ def define_hyperparameters() -> dict[str, int | float | str]:
     """
 
     return {
-        "epochs": 100,
+        "epochs": 10,
         "batch_size": 32,
         "learning_rate": 1e-3,
         "weight_decay": 1e-4,
@@ -47,7 +49,7 @@ def define_hyperparameters() -> dict[str, int | float | str]:
     }
 
 
-def define_dimensions() -> dict[str, int]:
+def define_dimensions() -> Dict[str, int]:
     """
     Define the parameters for training
 
@@ -61,8 +63,9 @@ def define_dimensions() -> dict[str, int]:
     }
 
 
-def train_model(model: Module, model_device, epochs, train_loader, val_loader, optimizer,
-                loss_func=CrossEntropyLoss()) -> tuple[list[float], list[float]]:
+def train_model(model: Module, model_device: Any, epochs: int, train_loader: DataLoader,
+                val_loader: DataLoader, optimizer: Optimizer,
+                loss_func: CrossEntropyLoss = CrossEntropyLoss()) -> Tuple[List[float], List[float]]:
     """
     Training loop with given number of epochs
 
@@ -72,7 +75,7 @@ def train_model(model: Module, model_device, epochs, train_loader, val_loader, o
     :param train_loader: Training data loader
     :param val_loader: Validation data loader
     :param optimizer: Optimizer for the model
-    :param loss_func: Loss function
+    :param loss_func: Loss function (default: CrossEntropyLoss)
     :return: Train and validation loss
     """
 
@@ -108,7 +111,8 @@ def train_model(model: Module, model_device, epochs, train_loader, val_loader, o
     return train_loss_all, val_loss_all
 
 
-def calculate_val_loss(model: Module, loss_func, model_device, images, labels, input_size) -> float:
+def calculate_val_loss(model: Module, loss_func: Callable, model_device: Any, images: Tensor, labels: Tensor,
+                       input_size: int) -> float:
     """
     Calculate validation loss
 
@@ -128,7 +132,8 @@ def calculate_val_loss(model: Module, loss_func, model_device, images, labels, i
     return loss.item()
 
 
-def do_backpropagation(model: Module, model_device, optimizer, loss_func, images, labels, input_size) -> float:
+def do_backpropagation(model: Module, model_device: Any, optimizer: Optimizer, loss_func: Callable, images: Tensor,
+                       labels: Tensor, input_size: int) -> float:
     """
     Perform backpropagation
 
@@ -151,7 +156,7 @@ def do_backpropagation(model: Module, model_device, optimizer, loss_func, images
     return loss.item()
 
 
-def update_lr(scheduler: LRScheduler) -> type(None):
+def update_lr(scheduler: LRScheduler) -> None:
     """
     Update the learning rate
 
@@ -162,7 +167,7 @@ def update_lr(scheduler: LRScheduler) -> type(None):
     scheduler.step()
 
 
-def evaluate_model(model: Module) -> type(None):
+def evaluate_model(model: Module) -> None:
     """
     Train the model
 
