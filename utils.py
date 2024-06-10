@@ -13,13 +13,14 @@ from torchvision.transforms import ToTensor
 from tqdm import tqdm
 
 
-def plot_training_curve(train_loss_all: List[float], val_loss_all: List[float]) -> None:
+def plot_training_curve(model: Module, train_loss_all: List[float], val_loss_all: List[float]) -> None:
     """
     Plot the training curve
 
+    :param model: Model which results are plotted
     :param train_loss_all: Training losses
     :param val_loss_all: Validation losses
-    :return: None
+    :return:
     """
 
     figure(figsize=(10, 5))
@@ -28,7 +29,7 @@ def plot_training_curve(train_loss_all: List[float], val_loss_all: List[float]) 
     xlabel("Epoch")
     ylabel("Loss")
     legend()
-    title("Training Curve for KAN on MNIST")
+    title(f"Training Curve for {model.__class__.__name__} on MNIST")
     show()
 
 
@@ -201,4 +202,4 @@ def evaluate_model(model: Module) -> None:
 
     save(model.state_dict(), model_path)
 
-    plot_training_curve(train_loss_all, val_loss_all)
+    plot_training_curve(model, train_loss_all, val_loss_all)
