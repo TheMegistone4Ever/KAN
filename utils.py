@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from matplotlib.pyplot import figure, plot, xlabel, ylabel, legend, title, show
 from torch import device, cuda, save, no_grad
-from torch.nn import CrossEntropyLoss
+from torch.nn import CrossEntropyLoss, Module
 from torch.optim import AdamW
-from torch.optim.lr_scheduler import ExponentialLR
+from torch.optim.lr_scheduler import ExponentialLR, LRScheduler
 from torch.utils.data import DataLoader, random_split
 from torchvision.datasets import MNIST
 from torchvision.transforms import ToTensor
@@ -15,8 +15,8 @@ def plot_training_curve(train_loss_all: list[float], val_loss_all: list[float]) 
     """
     Plot the training curve
 
-    :param train_loss_all:
-    :param val_loss_all:
+    :param train_loss_all: Training losses
+    :param val_loss_all: Validation losses
     :return:
     """
 
@@ -47,7 +47,7 @@ def define_hyperparameters() -> dict[str, int | float | str]:
     }
 
 
-def define_dimensions() -> dict[str, int | float | str]:
+def define_dimensions() -> dict[str, int]:
     """
     Define the parameters for training
 
@@ -61,7 +61,7 @@ def define_dimensions() -> dict[str, int | float | str]:
     }
 
 
-def train_model(model, model_device, epochs, train_loader, val_loader, optimizer,
+def train_model(model: Module, model_device, epochs, train_loader, val_loader, optimizer,
                 loss_func=CrossEntropyLoss()) -> tuple[list[float], list[float]]:
     """
     Training loop with given number of epochs
@@ -80,58 +80,55 @@ def train_model(model, model_device, epochs, train_loader, val_loader, optimizer
     input_size = model.get_input_size()
     scheduler = ExponentialLR(optimizer, gamma=.8)
 
-    # Training
     for epoch in range(epochs):
-        train_loss_sum, train_num = 0, 0
         model.train()
-        with tqdm(train_loader) as pbar:
-            for i, (images, labels) in enumerate(pbar):
-                loss = do_backpropagation(model, model_device, optimizer, loss_func, images, labels.to(model_device),
-                                          input_size)
+        with tqdm(train_loader, desc=f"Epoch {epoch + 1:05d}/{epochs}") as pbar:
+            train_loss_sum, train_num = 0, 0
+            for images, labels in pbar:
+                loss = do_backpropagation(model, model_device, optimizer, loss_func, images, labels, input_size)
                 train_loss_sum += loss * images.size(0)
                 train_num += images.size(0)
-                pbar.set_postfix(lr=optimizer.param_groups[0]["lr"])
 
-        train_loss = train_loss_sum / train_num if train_num != 0 else 0
-        train_loss_all.append(train_loss)
+                train_loss_all.append(train_loss := train_loss_sum / train_num if train_num else 0)
+                pbar.set_postfix_str(f"lr={optimizer.param_groups[0]['lr']:.2e}, {train_loss=:.4f}")
 
-        # Validation
         model.eval()
-        val_loss = calculate_val_loss(model, model_device, val_loader, loss_func)
-        val_loss_all.append(val_loss)
+        with tqdm(val_loader, desc="Validation Loop") as pbar:
+            val_loss_sum, val_num = 0, 0
+            for images, labels in pbar:
+                loss = calculate_val_loss(model, loss_func, model_device, images, labels, input_size)
+                val_loss_sum += loss * images.size(0)
+                val_num += images.size(0)
+
+                val_loss_all.append(val_loss := val_loss_sum / val_num if val_num else 0)
+                pbar.set_postfix_str(f"{val_loss=:.4f}")
 
         update_lr(scheduler)
-
-        pbar.set_postfix(loss=train_loss)
-        print(f"\nEpoch {epoch + 1}, Val Loss: {val_loss:,.4f}")
 
     return train_loss_all, val_loss_all
 
 
-def calculate_val_loss(model, model_device, val_loader, loss_func=CrossEntropyLoss()) -> float:
+def calculate_val_loss(model: Module, loss_func, model_device, images, labels, input_size) -> float:
     """
-    Calculate the validation loss
+    Calculate validation loss
 
     :param model: Torch model
     :param model_device: Device to run the model on
-    :param val_loader: Validation data loader
-    :param loss_func: Loss function
-    :return: Validation loss
+    :param images: Input images for the model
+    :param labels: Labels which the model should predict
+    :param loss_func: Loss function for the model
+    :param input_size: Input size for the model
+    :return: Loss value calculated during backpropagation
     """
 
-    val_loss = 0
-    val_num = 0
-    input_size = model.get_input_size()
+    images = images.reshape(-1, input_size).to(model_device)
+    labels = labels.to(model_device)
     with no_grad():
-        for images, labels in val_loader:
-            images = images.reshape(-1, input_size).to(model_device)
-            val_loss += loss_func(model(images), labels.to(model_device)).item() * images.size(0)
-            val_num += images.size(0)
-
-    return val_loss / val_num
+        loss = loss_func(model(images), labels)
+    return loss.item()
 
 
-def do_backpropagation(model, model_device, optimizer, loss_func, images, labels, input_size) -> float:
+def do_backpropagation(model: Module, model_device, optimizer, loss_func, images, labels, input_size) -> float:
     """
     Perform backpropagation
 
@@ -146,6 +143,7 @@ def do_backpropagation(model, model_device, optimizer, loss_func, images, labels
     """
 
     images = images.reshape(-1, input_size).to(model_device)
+    labels = labels.to(model_device)
     optimizer.zero_grad()
     loss = loss_func(model(images), labels)
     loss.backward()
@@ -153,7 +151,7 @@ def do_backpropagation(model, model_device, optimizer, loss_func, images, labels
     return loss.item()
 
 
-def update_lr(scheduler) -> type(None):
+def update_lr(scheduler: LRScheduler) -> type(None):
     """
     Update the learning rate
 
@@ -164,7 +162,7 @@ def update_lr(scheduler) -> type(None):
     scheduler.step()
 
 
-def evaluate_model(model):
+def evaluate_model(model: Module) -> type(None):
     """
     Train the model
 
