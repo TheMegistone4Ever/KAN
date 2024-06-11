@@ -177,5 +177,5 @@ class KAN(Module):
     def regularization_loss(self, regularize_activation=1.0, regularize_entropy=1.0):
         return sum(layer.regularization_loss(regularize_activation, regularize_entropy) for layer in self.layers)
 
-    def get_input_size(self):
+    def get_input_size(self):  # TODO: move to interface
         return self.__input_size

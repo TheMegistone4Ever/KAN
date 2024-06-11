@@ -83,36 +83,33 @@ def train_model(model: Module, model_device: Any, epochs: int, train_loader: Dat
     train_loss_all, val_loss_all = list(), list()
     input_size = model.get_input_size()
     scheduler = ExponentialLR(optimizer, gamma=.8)
-
     for epoch in range(epochs):
         model.train()
-        with tqdm(train_loader, desc=f"Epoch {epoch + 1:05d}/{epochs}") as pbar:
-            train_loss_sum, train_num, train_loss = 0, 0, 0
-            for images, labels in pbar:
-                loss = do_backpropagation(model, model_device, optimizer, loss_func, images, labels, input_size)
-                train_loss_sum += loss * images.size(0)
-                train_num += images.size(0)
-                train_loss = train_loss_sum / train_num if train_num else 0
-                pbar.set_postfix_str(f"lr={optimizer.param_groups[0]['lr']:.2e}, {train_loss=:.4f}")
-            train_loss_all.append(train_loss)
-
+        train_loss_all.append(run_step(f"Epoch {epoch + 1:05d}/{epochs}", train_loader, do_backpropagation,
+                                       optimizer=optimizer, model=model, model_device=model_device, loss_func=loss_func,
+                                       input_size=input_size))
         model.eval()
-        with tqdm(val_loader, desc="Validation Loop") as pbar:
-            val_loss_sum, val_num, val_loss = 0, 0, 0
-            for images, labels in pbar:
-                loss = calculate_val_loss(model, loss_func, model_device, images, labels, input_size)
-                val_loss_sum += loss * images.size(0)
-                val_num += images.size(0)
-                val_loss = val_loss_sum / val_num if val_num else 0
-                pbar.set_postfix_str(f"{val_loss=:.4f}")
-            val_loss_all.append(val_loss)
-
+        val_loss_all.append(run_step("Validation Step", val_loader, calculate_val_loss, model=model,
+                                     model_device=model_device, loss_func=loss_func, input_size=input_size))
         update_lr(scheduler)
-
     return train_loss_all, val_loss_all
 
 
-def calculate_val_loss(model: Module, loss_func: Callable, model_device: Any, images: Tensor, labels: Tensor,
+def run_step(desc: str, data_loader: DataLoader, step_function: Callable, **kwargs: Any) -> float:
+    loss_sum, num_samples, avg_loss = 0, 0, 0
+    with tqdm(data_loader, desc=desc) as pbar:
+        for images, labels in pbar:
+            loss_sum += step_function(images=images, labels=labels, **kwargs) * images.size(0)
+            num_samples += images.size(0)
+            avg_loss = loss_sum / num_samples if num_samples else 0
+            postfix_str = f"{avg_loss=:.4f}"
+            if "optimizer" in kwargs:
+                postfix_str = f"lr={kwargs['optimizer'].param_groups[0]['lr']:.2e}, {postfix_str}"
+            pbar.set_postfix_str(postfix_str)
+    return avg_loss
+
+
+def calculate_val_loss(model: Module, model_device: Any, loss_func: Callable, images: Tensor, labels: Tensor,
                        input_size: int) -> float:
     """
     Calculate validation loss
@@ -133,8 +130,8 @@ def calculate_val_loss(model: Module, loss_func: Callable, model_device: Any, im
     return loss.item()
 
 
-def do_backpropagation(model: Module, model_device: Any, optimizer: Optimizer, loss_func: Callable, images: Tensor,
-                       labels: Tensor, input_size: int) -> float:
+def do_backpropagation(model: Module, model_device: Any, loss_func: Callable, images: Tensor, labels: Tensor,
+                       input_size: int, optimizer: Optimizer) -> float:
     """
     Perform backpropagation
 

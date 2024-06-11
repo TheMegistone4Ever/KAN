@@ -49,18 +49,16 @@ def plot_predictions(model: Module, data_loader: DataLoader, w: int = 5, h: int 
     fig.tight_layout(pad=.5)
 
     with no_grad():
-        for i in range(h * w):
-            image, label = next(iter(data_loader))
-            image = image[0].reshape(-1, input_size).to(device)  # Take the first image
-            predicted_label = argmax(model(image)).item()
-
-            # Get the label for the first image in the batch
-            label = label[0].item()  # Extract the first label from the batch
-
-            ax = axes[i // w, i % w]
-            ax.imshow(image.cpu().reshape(input_width, input_height), cmap="gray")
-            ax.axis("off")
-            ax.set_title(f"{predicted_label}", color="g" if predicted_label == label else "r")
+        for width in range(w):
+            for height in range(h):
+                # Take the first image from the batch, so label[0] is the true label
+                image, label = next(iter(data_loader))
+                image = image[0].reshape(-1, input_size).to(device)
+                predicted_label = argmax(model(image)).item()
+                ax = axes[height, width]
+                ax.imshow(image.cpu().reshape(input_width, input_height), cmap="gray")
+                ax.axis("off")
+                ax.set_title(f"{predicted_label}", color="g" if predicted_label == label[0].item() else "r")
 
     suptitle(f"\"{model.__class__.__name__}\" Predictions")
     show()
