@@ -4,7 +4,7 @@ from typing import Tuple, List, Dict, Union, Any, Callable
 
 from matplotlib.pyplot import figure, plot, xlabel, ylabel, legend, title, show
 from torch import device, cuda, save, no_grad, Tensor
-from torch.nn import CrossEntropyLoss, Module
+from torch.nn import CrossEntropyLoss
 from torch.optim import AdamW, Optimizer
 from torch.optim.lr_scheduler import ExponentialLR, LRScheduler
 from torch.utils.data import DataLoader, random_split
@@ -12,8 +12,10 @@ from torchvision.datasets import MNIST
 from torchvision.transforms import ToTensor
 from tqdm import tqdm
 
+from nns.inn import INN
 
-def plot_training_curve(model: Module, train_loss_all: List[float], val_loss_all: List[float]) -> None:
+
+def plot_training_curve(model: INN, train_loss_all: List[float], val_loss_all: List[float]) -> None:
     """
     Plot the training curve
 
@@ -64,7 +66,7 @@ def define_dimensions() -> Dict[str, int]:
     }
 
 
-def train_model(model: Module, model_device: Any, epochs: int, train_loader: DataLoader,
+def train_model(model: INN, model_device: Any, epochs: int, train_loader: DataLoader,
                 val_loader: DataLoader, optimizer: Optimizer,
                 loss_func: CrossEntropyLoss = CrossEntropyLoss()) -> Tuple[List[float], List[float]]:
     """
@@ -96,20 +98,28 @@ def train_model(model: Module, model_device: Any, epochs: int, train_loader: Dat
 
 
 def run_step(desc: str, data_loader: DataLoader, step_function: Callable, **kwargs: Any) -> float:
+    """
+    Run a step function on the data loader
+
+    :param desc: Description for the progress bar
+    :param data_loader: DataLoader to run the step function on
+    :param step_function: Function to run on the data loader
+    :param kwargs: Additional arguments for the step function
+    :return: Average loss for the step function
+    """
+
     loss_sum, num_samples, avg_loss = 0, 0, 0
     with tqdm(data_loader, desc=desc) as pbar:
         for images, labels in pbar:
             loss_sum += step_function(images=images, labels=labels, **kwargs) * images.size(0)
             num_samples += images.size(0)
             avg_loss = loss_sum / num_samples if num_samples else 0
-            postfix_str = f"{avg_loss=:.4f}"
-            if "optimizer" in kwargs:
-                postfix_str = f"lr={kwargs['optimizer'].param_groups[0]['lr']:.2e}, {postfix_str}"
-            pbar.set_postfix_str(postfix_str)
+            pbar.set_postfix_str((f"lr={kwargs['optimizer'].param_groups[0]['lr']:.2e}, "
+                                  if "optimizer" in kwargs else "") + f"{avg_loss=:.4f}")
     return avg_loss
 
 
-def calculate_val_loss(model: Module, model_device: Any, loss_func: Callable, images: Tensor, labels: Tensor,
+def calculate_val_loss(model: INN, model_device: Any, loss_func: Callable, images: Tensor, labels: Tensor,
                        input_size: int) -> float:
     """
     Calculate validation loss
@@ -126,11 +136,12 @@ def calculate_val_loss(model: Module, model_device: Any, loss_func: Callable, im
     images = images.reshape(-1, input_size).to(model_device)
     labels = labels.to(model_device)
     with no_grad():
-        loss = loss_func(model(images), labels)
+        outputs = model(images)
+        loss = loss_func(outputs, labels)
     return loss.item()
 
 
-def do_backpropagation(model: Module, model_device: Any, loss_func: Callable, images: Tensor, labels: Tensor,
+def do_backpropagation(model: INN, model_device: Any, loss_func: Callable, images: Tensor, labels: Tensor,
                        input_size: int, optimizer: Optimizer) -> float:
     """
     Perform backpropagation
@@ -148,7 +159,8 @@ def do_backpropagation(model: Module, model_device: Any, loss_func: Callable, im
     images = images.reshape(-1, input_size).to(model_device)
     labels = labels.to(model_device)
     optimizer.zero_grad()
-    loss = loss_func(model(images), labels)
+    outputs = model(images)
+    loss = loss_func(outputs, labels)
     loss.backward()
     optimizer.step()
     return loss.item()
@@ -165,7 +177,7 @@ def update_lr(scheduler: LRScheduler) -> None:
     scheduler.step()
 
 
-def evaluate_model(model: Module) -> None:
+def evaluate_model(model: INN) -> None:
     """
     Train the model
 

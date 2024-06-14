@@ -2,14 +2,16 @@ from math import sqrt
 
 from torch import (arange, Tensor, no_grad, rand, linalg, bmm, sort, linspace, concatenate, float32, int64,
                    sum as torch_sum)
-from torch.nn import Module, SiLU, Parameter, init, functional, ModuleList
+from torch.nn import SiLU, Parameter, init, functional, ModuleList
+
+from nns.inn import INN
 
 
-class KANLinear(Module):
+class KANLinear(INN):
     def __init__(self, in_features, out_features, grid_size=5, spline_order=3, scale_noise=0.1, scale_base=1.0,
                  scale_spline=1.0, enable_standalone_scale_spline=True, base_activation=SiLU, grid_eps=0.02,
                  grid_range=(-1, 1), ):
-        super(KANLinear, self).__init__()
+        super(KANLinear, self).__init__(in_features)
         self.in_features = in_features
         self.out_features = out_features
         self.grid_size = grid_size
@@ -94,7 +96,7 @@ class KANLinear(Module):
     def scaled_spline_weight(self):
         return self.spline_weight * (self.spline_scaler.unsqueeze(-1) if self.enable_standalone_scale_spline else 1.0)
 
-    def forward(self, x: Tensor):
+    def forward(self, x: Tensor, update_grid=False):
         assert x.dim() == 2 and x.size(1) == self.in_features
 
         base_output = functional.linear(self.base_activation(x), self.base_weight)
@@ -153,11 +155,10 @@ class KANLinear(Module):
                 regularize_entropy * regularization_loss_entropy)
 
 
-class KAN(Module):
+class KAN(INN):
     def __init__(self, layers_hidden, grid_size=5, spline_order=3, scale_noise=0.1, scale_base=1.0, scale_spline=1.0,
                  base_activation=SiLU, grid_eps=0.02, grid_range=(-1, 1), ):
-        super(KAN, self).__init__()
-        self.__input_size = layers_hidden[0]
+        super(KAN, self).__init__(layers_hidden[0])
         self.grid_size = grid_size
         self.spline_order = spline_order
 
@@ -176,6 +177,3 @@ class KAN(Module):
 
     def regularization_loss(self, regularize_activation=1.0, regularize_entropy=1.0):
         return sum(layer.regularization_loss(regularize_activation, regularize_entropy) for layer in self.layers)
-
-    def get_input_size(self):  # TODO: move to interface
-        return self.__input_size
